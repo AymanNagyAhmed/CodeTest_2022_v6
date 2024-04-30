@@ -1,11 +1,12 @@
 <?php
 
-namespace DTApi\Http\Controllers;
+namespace App\Http\Controllers;
 
 use DTApi\Models\Job;
 use DTApi\Http\Requests;
 use DTApi\Models\Distance;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use DTApi\Repository\BookingRepository;
 
 /**
@@ -30,19 +31,34 @@ class BookingController extends Controller
     }
 
     /**
-     * @param Request $request
+     * Display a listing of bookings.
+     *
+     * @param  Request  $request
      * @return mixed
      */
     public function index(Request $request)
     {
-        if ($user_id = $request->get('user_id')) {
-
-            $response = $this->repository->getUsersJobs($user_id);
-        } elseif ($request->__authenticatedUser->user_type == env('ADMIN_ROLE_ID') || $request->__authenticatedUser->user_type == env('SUPERADMIN_ROLE_ID')) {
-            $response = $this->repository->getAll($request);
+        if (!$request instanceof Request) {
+            return response(['error' => 'Invalid request']);
         }
 
-        return response($response);
+        if (!property_exists($request, '__authenticatedUser')) {
+            return response(['error' => 'Authenticated user not found']);
+        }
+
+        try {
+            if ($user_id = $request->get('user_id')) {
+                $response = $this->repository->getUsersJobs($user_id);
+            } elseif ($request->__authenticatedUser->user_type == env('ADMIN_ROLE_ID') || $request->__authenticatedUser->user_type == env('SUPERADMIN_ROLE_ID')) {
+                $response = $this->repository->getAll($request);
+            } else {
+                return response(['error' => 'Unauthorized']);
+            }
+
+            return response($response);
+        } catch (\Exception $e) {
+            return response(['error' => $e->getMessage()]);
+        }
     }
 
     /**
@@ -51,9 +67,17 @@ class BookingController extends Controller
      */
     public function show($id)
     {
-        $job = $this->repository->with('translatorJobRel.user')->find($id);
+        try {
+            $job = $this->repository->with('translatorJobRel.user')->find($id);
 
-        return response($job);
+            if (!$job) {
+                return response(['error' => 'Job not found']);
+            }
+
+            return response($job);
+        } catch (\Exception $e) {
+            return response(['error' => $e->getMessage()]);
+        }
     }
 
     /**
@@ -62,11 +86,22 @@ class BookingController extends Controller
      */
     public function store(Request $request)
     {
+        if (!$request instanceof Request) {
+            return response(['error' => 'Invalid request']);
+        }
+
+        if (!property_exists($request, '__authenticatedUser')) {
+            return response(['error' => 'Authenticated user not found']);
+        }
+
         $data = $request->all();
 
-        $response = $this->repository->store($request->__authenticatedUser, $data);
-
-        return response($response);
+        try {
+            $response = $this->repository->store($request->__authenticatedUser, $data);
+            return response($response);
+        } catch (\Exception $e) {
+            return response(['error' => $e->getMessage()]);
+        }
     }
 
     /**
@@ -76,11 +111,23 @@ class BookingController extends Controller
      */
     public function update($id, Request $request)
     {
+        if (!$request instanceof Request) {
+            return response(['error' => 'Invalid request']);
+        }
+
+        if (!property_exists($request, '__authenticatedUser')) {
+            return response(['error' => 'Authenticated user not found']);
+        }
+
         $data = $request->all();
         $cuser = $request->__authenticatedUser;
-        $response = $this->repository->updateJob($id, array_except($data, ['_token', 'submit']), $cuser);
 
-        return response($response);
+        try {
+            $response = $this->repository->updateJob($id, array_except($data, ['_token', 'submit']), $cuser);
+            return response($response);
+        } catch (\Exception $e) {
+            return response(['error' => $e->getMessage()]);
+        }
     }
 
     /**
@@ -163,29 +210,56 @@ class BookingController extends Controller
         return response($response);
     }
 
+    /**
+     * Handle the request for when the customer does not call.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
     public function customerNotCall(Request $request)
     {
+        if (!$request instanceof Request) {
+            return response(['error' => 'Invalid request']);
+        }
+
         $data = $request->all();
 
-        $response = $this->repository->customerNotCall($data);
-
-        return response($response);
+        try {
+            $response = $this->repository->customerNotCall($data);
+            return response($response);
+        } catch (\Exception $e) {
+            return response(['error' => $e->getMessage()]);
+        }
     }
 
     /**
      * @param Request $request
-     * @return mixed
+     * @return \Illuminate\Http\Response
      */
     public function getPotentialJobs(Request $request)
     {
-        $data = $request->all();
+        if (!$request instanceof Request) {
+            return response(['error' => 'Invalid request']);
+        }
+
+        if (!property_exists($request, '__authenticatedUser')) {
+            return response(['error' => 'Authenticated user not found']);
+        }
+
         $user = $request->__authenticatedUser;
 
-        $response = $this->repository->getPotentialJobs($user);
-
-        return response($response);
+        try {
+            $response = $this->repository->getPotentialJobs($user);
+            return response($response);
+        } catch (\Exception $e) {
+            return response(['error' => $e->getMessage()]);
+        }
     }
 
+    /**
+     * @param Request $request
+     * @return \Illuminate\Http\Response
+     */
     public function distanceFeed(Request $request)
     {
         $data = $request->all();
@@ -247,22 +321,56 @@ class BookingController extends Controller
         return response('Record updated!');
     }
 
+    /**
+     * Reopens a booking.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\Response
+     */
     public function reopen(Request $request)
     {
-        $data = $request->all();
-        $response = $this->repository->reopen($data);
+        if (!$request instanceof Request) {
+            return response(['error' => 'Invalid request']);
+        }
 
-        return response($response);
+        $data = $request->all();
+
+        try {
+            $response = $this->repository->reopen($data);
+            return response($response);
+        } catch (\Exception $e) {
+            return response(['error' => $e->getMessage()]);
+        }
     }
 
+    /**
+     * Resends notifications for a specific job.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\Response
+     */
     public function resendNotifications(Request $request)
     {
         $data = $request->all();
-        $job = $this->repository->find($data['jobid']);
-        $job_data = $this->repository->jobToData($job);
-        $this->repository->sendNotificationTranslator($job, $job_data, '*');
 
-        return response(['success' => 'Push sent']);
+        if (!isset($data['jobid'])) {
+            return response(['error' => 'Job ID is required']);
+        }
+
+        $job = $this->repository->find($data['jobid']);
+
+        if (!$job) {
+            return response(['error' => 'Job not found']);
+        }
+
+        $job_data = $this->repository->jobToData($job);
+
+        try {
+            $this->repository->sendNotificationTranslator($job, $job_data, '*');
+            return response(['success' => 'Push sent']);
+        } catch (\Exception $e) {
+            return response(['error' => $e->getMessage()]);
+        }
     }
 
     /**
@@ -273,14 +381,22 @@ class BookingController extends Controller
     public function resendSMSNotifications(Request $request)
     {
         $data = $request->all();
+
+        if (!isset($data['jobid'])) {
+            return response(['error' => 'Job ID is required']);
+        }
+
         $job = $this->repository->find($data['jobid']);
-        $job_data = $this->repository->jobToData($job);
+
+        if (!$job) {
+            return response(['error' => 'Job not found']);
+        }
 
         try {
             $this->repository->sendSMSNotificationToTranslator($job);
             return response(['success' => 'SMS sent']);
         } catch (\Exception $e) {
-            return response(['success' => $e->getMessage()]);
+            return response(['error' => $e->getMessage()]);
         }
     }
 }

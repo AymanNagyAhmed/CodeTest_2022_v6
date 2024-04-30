@@ -1,6 +1,6 @@
 <?php
 
-namespace DTApi\Repository;
+namespace App\Repository;
 
 use DTApi\Events\SessionEnded;
 use DTApi\Helpers\SendSMSHelper;
@@ -40,8 +40,9 @@ class BookingRepository extends BaseRepository
 
     /**
      * @param Job $model
+     * @param MailerInterface $mailer
      */
-    function __construct(Job $model, MailerInterface $mailer)
+    public function __construct(Job $model, MailerInterface $mailer)
     {
         parent::__construct($model);
         $this->mailer = $mailer;
@@ -87,6 +88,7 @@ class BookingRepository extends BaseRepository
 
     /**
      * @param $user_id
+     * @param Request $request
      * @return array
      */
     public function getUsersJobsHistory($user_id, Request $request)
@@ -1312,7 +1314,7 @@ class BookingRepository extends BaseRepository
      * @param $due
      * @param $duration
      */
-    private function sendNotificationChangePending($user, $job, $language, $due, $duration)
+    public function sendNotificationChangePending($user, $job, $language, $due, $duration)
     {
         $data = array();
         $data['notification_type'] = 'session_start_remind';
@@ -1633,7 +1635,10 @@ class BookingRepository extends BaseRepository
         return $response;
     }
 
-
+    /**
+     * @param $post_data
+     * @return array $response
+     */
     public function customerNotCall($post_data)
     {
         $completeddate = date('Y-m-d H:i:s');
@@ -1657,6 +1662,13 @@ class BookingRepository extends BaseRepository
         return $response;
     }
 
+    /**
+     * Retrieve all jobs based on the given request and optional limit.
+     *
+     * @param Request $request 
+     * @param int|null $limit 
+     * @return mixed
+     */
     public function getAll(Request $request, $limit = null)
     {
         $requestdata = $request->all();
@@ -1850,6 +1862,10 @@ class BookingRepository extends BaseRepository
         return $allJobs;
     }
 
+    /**
+     * @return array
+     * @throws \Exception
+     */
     public function alerts()
     {
         $jobs = Job::all();
@@ -1857,7 +1873,6 @@ class BookingRepository extends BaseRepository
         $jobId = [];
         $diff = [];
         $i = 0;
-
         foreach ($jobs as $job) {
             $sessionTime = explode(':', $job->session_time);
             if (count($sessionTime) >= 3) {
@@ -1871,20 +1886,15 @@ class BookingRepository extends BaseRepository
                 $i++;
             }
         }
-
         foreach ($sesJobs as $job) {
             $jobId[] = $job->id;
         }
-
         $languages = Language::where('active', '1')->orderBy('language')->get();
         $requestdata = Request::all();
         $all_customers = DB::table('users')->where('user_type', '1')->lists('email');
         $all_translators = DB::table('users')->where('user_type', '2')->lists('email');
-
         $cuser = Auth::user();
         $consumer_type = TeHelper::getUsermeta($cuser->id, 'consumer_type');
-
-
         if ($cuser && $cuser->is('superadmin')) {
             $allJobs = DB::table('jobs')
                 ->join('languages', 'jobs.from_language_id', '=', 'languages.id')->whereIn('jobs.id', $jobId);
@@ -1950,10 +1960,14 @@ class BookingRepository extends BaseRepository
             $allJobs->orderBy('jobs.created_at', 'desc');
             $allJobs = $allJobs->paginate(15);
         }
-
         return ['allJobs' => $allJobs, 'languages' => $languages, 'all_customers' => $all_customers, 'all_translators' => $all_translators, 'requestdata' => $requestdata];
     }
 
+    /**
+     * Retrieve a paginated list of throttles with associated users where login attempts have failed.
+     *
+     * @return array
+     */
     public function userLoginFailed()
     {
         $throttles = Throttles::where('ignore', 0)->with('user')->paginate(15);
@@ -1961,6 +1975,11 @@ class BookingRepository extends BaseRepository
         return ['throttles' => $throttles];
     }
 
+    /**
+     * Retrieves a list of pending jobs based on various filters.
+     *
+     * @return array
+     */
     public function bookingExpireNoAccepted()
     {
         $languages = Language::where('active', '1')->orderBy('language')->get();
@@ -2060,6 +2079,12 @@ class BookingRepository extends BaseRepository
         return ['allJobs' => $allJobs, 'languages' => $languages, 'all_customers' => $all_customers, 'all_translators' => $all_translators, 'requestdata' => $requestdata];
     }
 
+    /**
+     * Ignore the expiring job with the given ID.
+     *
+     * @param int $id
+     * @return array
+     */
     public function ignoreExpiring($id)
     {
         $job = Job::find($id);
@@ -2068,6 +2093,12 @@ class BookingRepository extends BaseRepository
         return ['success', 'Changes saved'];
     }
 
+    /**
+     * Marks a job as expired and saves the changes.
+     *
+     * @param int $id
+     * @return array
+     */
     public function ignoreExpired($id)
     {
         $job = Job::find($id);
@@ -2076,6 +2107,12 @@ class BookingRepository extends BaseRepository
         return ['success', 'Changes saved'];
     }
 
+    /**
+     * Ignore the throttle for a specific ID.
+     *
+     * @param int $id
+     * @return array
+     */
     public function ignoreThrottle($id)
     {
         $throttle = Throttles::find($id);
@@ -2084,6 +2121,12 @@ class BookingRepository extends BaseRepository
         return ['success', 'Changes saved'];
     }
 
+    /**
+     * Reopens a booking.
+     *
+     * @param array $request
+     * @return array
+     */
     public function reopen($request)
     {
         $jobid = $request['jobid'];

@@ -1,6 +1,6 @@
 <?php
 
-namespace DTApi\Repository;
+namespace App\Repository;
 
 use Validator;
 use Illuminate\Database\Eloquent\Model;
@@ -107,13 +107,20 @@ class BaseRepository
 
     /**
      * @param int|null $perPage
-     * @return mixed
+     * @return \Illuminate\Pagination\LengthAwarePaginator
      */
     public function paginate($perPage = null)
     {
         return $this->model->paginate($perPage);
     }
 
+    /**
+     * Filter the query results based on the given key-value pair.
+     *
+     * @param string $key The column name to filter on.
+     * @param mixed $where The value to filter by.
+     * @return Illuminate\Database\Eloquent\Builder The query builder instance.
+     */
     public function where($key, $where)
     {
         return $this->model->where($key, $where);
@@ -121,7 +128,7 @@ class BaseRepository
 
     /**
      * @param array $data
-     * @param null $rules
+     * @param mixed $rules
      * @param array $messages
      * @param array $customAttributes
      * @return \Illuminate\Validation\Validator
@@ -137,7 +144,7 @@ class BaseRepository
 
     /**
      * @param array $data
-     * @param null $rules
+     * @param mixed $rules
      * @param array $messages
      * @param array $customAttributes
      * @return bool
@@ -194,7 +201,6 @@ class BaseRepository
         }
 
         if ($validator->fails()) {
-            return false;
             throw (new ValidationException)->setValidator($validator);
         }
 
